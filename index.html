@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Python editor</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f3f6fb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+    }
+
+    main {
+      width: min(100%, 1000px);
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid #d8dfeb;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 8px 28px rgb(23 32 51 / 8%);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #e4e9f1;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    #status {
+      color: #58657a;
+      font-size: 0.9rem;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
+      min-height: 360px;
+    }
+
+    .panel {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+    }
+
+    .panel + .panel {
+      border-left: 1px solid #e4e9f1;
+    }
+
+    .panel-title {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e4e9f1;
+      color: #43516a;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    #editor, #output {
+      width: 100%;
+      min-height: 300px;
+      flex: 1;
+      margin: 0;
+      padding: 16px;
+      border: 0;
+      border-radius: 0;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+      tab-size: 4;
+    }
+
+    #editor {
+      resize: vertical;
+      color: #172033;
+      background: #fbfcfe;
+    }
+
+    textarea:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 3px solid #85b7ff;
+      outline-offset: -3px;
+    }
+
+    #output {
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #e7edf7;
+      background: #111827;
+    }
+
+    #output:empty::before {
+      color: #95a1b5;
+      content: "Your program output will appear here.";
+    }
+
+    .terminal-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #111827;
+    }
+
+    .terminal-input[hidden] {
+      display: none;
+    }
+
+    .terminal-prompt {
+      color: #9fb0ca;
+      font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #stdin {
+      min-width: 0;
+      flex: 1;
+      padding: 7px 8px;
+      border: 1px solid #45536b;
+      border-radius: 4px;
+      color: #e7edf7;
+      background: #1d2738;
+      font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #send-input {
+      padding: 7px 10px;
+      font-size: 0.85rem;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-top: 1px solid #e4e9f1;
+    }
+
+    button {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 7px;
+      color: #fff;
+      background: #1769d2;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: #0e56b3;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
+    .hint {
+      color: #58657a;
+      font-size: 0.85rem;
+    }
+
+    details {
+      padding: 0 16px 16px;
+      color: #43516a;
+      font-size: 0.9rem;
+    }
+
+    details p {
+      margin: 10px 0 6px;
+    }
+
+    details code {
+      display: block;
+      padding: 10px;
+      overflow-wrap: anywhere;
+      border-radius: 6px;
+      color: #172033;
+      background: #f3f6fb;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    @media (max-width: 680px) {
+      body {
+        padding: 10px;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .panel + .panel {
+        border-top: 1px solid #e4e9f1;
+        border-left: 0;
+      }
+
+      #editor, #output {
+        min-height: 220px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Python editor</h1>
+      <span id="status" role="status" aria-live="polite">Loading Python…</span>
+    </header>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="editor-heading">
+        <div class="panel-title" id="editor-heading">Code</div>
+        <textarea id="editor" aria-label="Python code editor" spellcheck="false" autocapitalize="off"></textarea>
+      </section>
+      <section class="panel" aria-labelledby="output-heading">
+        <div class="panel-title" id="output-heading">Output</div>
+        <pre id="output" aria-live="polite"></pre>
+        <form class="terminal-input" id="terminal-input" hidden>
+          <span class="terminal-prompt" aria-hidden="true">&gt;</span>
+          <input id="stdin" type="text" aria-label="Type input for your Python program" placeholder="Type a response and press Enter" autocomplete="off">
+          <button id="send-input" type="submit">Enter</button>
+        </form>
+      </section>
+    </div>
+
+    <div class="controls">
+      <button id="run" type="button" disabled>Run Python</button>
+      <button id="clear" type="button" disabled>Clear output</button>
+      <span class="hint">Enter responses in the console when prompted. Press Ctrl+Enter (or Cmd+Enter) to run.</span>
+    </div>
+
+    <details>
+      <summary>Embed this editor</summary>
+      <p>Set the initial program with the <code>?code=</code> URL parameter. For example:</p>
+      <code>&lt;iframe src="index.html?code=print%28%22Hello%20class%21%22%29" title="Python editor" width="100%" height="520"&gt;&lt;/iframe&gt;</code>
+      <p>Or set the code in an existing iframe without reloading it:</p>
+      <code>document.getElementById("python-frame").contentWindow.postMessage({ type: "python-editor:set-code", code: "print('Hello class!')" }, "*");</code>
+      <p>The Python runtime loads from a CDN, so the page needs an internet connection.</p>
+    </details>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+  <script>
+    const defaultProgram = `print("Hello world")
+name = "Mr Doopy"
+age = 99
+print(name)
+print(f"{name} is {age} years old")
+print(f"hello {name}")
+
+name = input("Who are you? ")
+print(f"hello {name}")`;
+
+    const editor = document.getElementById("editor");
+    const output = document.getElementById("output");
+    const stdin = document.getElementById("stdin");
+    const terminalInput = document.getElementById("terminal-input");
+    const runButton = document.getElementById("run");
+    const clearButton = document.getElementById("clear");
+    const status = document.getElementById("status");
+    let pendingInput = null;
+    const initialCode = new URLSearchParams(window.location.search).get("code");
+    editor.value = initialCode === null ? defaultProgram : initialCode;
+
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.type === "python-editor:set-code" && typeof event.data.code === "string") {
+        editor.value = event.data.code;
+      }
+    });
+
+    function appendOutput(text) {
+      output.textContent += text;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function requestInput(promptText) {
+      if (promptText) {
+        appendOutput(String(promptText));
+      }
+
+      return new Promise((resolve) => {
+        pendingInput = resolve;
+        terminalInput.hidden = false;
+        stdin.value = "";
+        stdin.focus();
+      });
+    }
+
+    terminalInput.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (pendingInput === null) {
+        return;
+      }
+
+      const answer = stdin.value;
+      appendOutput(answer + "\n");
+      terminalInput.hidden = true;
+      const resolve = pendingInput;
+      pendingInput = null;
+      resolve(answer);
+    });
+
+    const pythonEditorSetup = `
+import ast as _python_editor_ast
+
+class _PythonEditorCallScanner(_python_editor_ast.NodeVisitor):
+    def __init__(self):
+        self.calls = set()
+        self.has_input = False
+
+    def visit_FunctionDef(self, node):
+        return
+
+    def visit_AsyncFunctionDef(self, node):
+        return
+
+    def visit_Lambda(self, node):
+        return
+
+    def visit_Call(self, node):
+        if isinstance(node.func, _python_editor_ast.Name):
+            if node.func.id == "input":
+                self.has_input = True
+            else:
+                self.calls.add(node.func.id)
+        elif isinstance(node.func, _python_editor_ast.Attribute):
+            self.calls.add(node.func.attr)
+        self.generic_visit(node)
+
+def _python_editor_transform(source):
+    tree = _python_editor_ast.parse(source)
+    functions = {}
+    for node in _python_editor_ast.walk(tree):
+        if isinstance(node, (_python_editor_ast.FunctionDef, _python_editor_ast.AsyncFunctionDef)):
+            functions.setdefault(node.name, []).append(node)
+
+    dependencies = {}
+    async_names = set()
+    for name, definitions in functions.items():
+        dependencies[name] = set()
+        for definition in definitions:
+            scanner = _PythonEditorCallScanner()
+            for statement in definition.body:
+                scanner.visit(statement)
+            dependencies[name].update(scanner.calls)
+            if scanner.has_input or isinstance(definition, _python_editor_ast.AsyncFunctionDef):
+                async_names.add(name)
+
+    changed = True
+    while changed:
+        changed = False
+        for name, calls in dependencies.items():
+            if name not in async_names and calls.intersection(async_names):
+                async_names.add(name)
+                changed = True
+
+    class _InputTransformer(_python_editor_ast.NodeTransformer):
+        def __init__(self):
+            self.async_context = [True]
+
+        def visit_Lambda(self, node):
+            if any(
+                isinstance(child, _python_editor_ast.Call)
+                and isinstance(child.func, _python_editor_ast.Name)
+                and (child.func.id == "input" or child.func.id in async_names)
+                for child in _python_editor_ast.walk(node)
+            ):
+                raise SyntaxError("input() inside a lambda is not supported")
+            return node
+
+        def visit_FunctionDef(self, node):
+            return self._visit_function(node, False)
+
+        def visit_AsyncFunctionDef(self, node):
+            return self._visit_function(node, True)
+
+        def _visit_function(self, node, already_async):
+            can_await = already_async or node.name in async_names
+            self.async_context.append(can_await)
+            node.body = [self.visit(statement) for statement in node.body]
+            self.async_context.pop()
+            if node.name in async_names and not already_async:
+                converted = _python_editor_ast.AsyncFunctionDef(
+                    name=node.name,
+                    args=node.args,
+                    body=node.body,
+                    decorator_list=node.decorator_list,
+                    returns=node.returns,
+                    type_comment=node.type_comment,
+                    type_params=getattr(node, "type_params", [])
+                )
+                return _python_editor_ast.copy_location(converted, node)
+            return node
+
+        def visit_Call(self, node):
+            is_input = isinstance(node.func, _python_editor_ast.Name) and node.func.id == "input"
+            is_async_call = (
+                isinstance(node.func, _python_editor_ast.Name) and node.func.id in async_names
+            ) or (
+                isinstance(node.func, _python_editor_ast.Attribute) and node.func.attr in async_names
+            )
+            node = self.generic_visit(node)
+            if is_input:
+                if not self.async_context[-1]:
+                    raise SyntaxError("input() could not be made asynchronous in this context")
+                call = _python_editor_ast.Call(
+                    func=_python_editor_ast.Name(id="_python_editor_readline", ctx=_python_editor_ast.Load()),
+                    args=node.args,
+                    keywords=node.keywords
+                )
+                return _python_editor_ast.copy_location(_python_editor_ast.Await(value=call), node)
+            if is_async_call:
+                if not self.async_context[-1]:
+                    raise SyntaxError("A function that uses input() was called from a synchronous context")
+                return _python_editor_ast.copy_location(_python_editor_ast.Await(value=node), node)
+            return node
+
+    tree = _InputTransformer().visit(tree)
+    _python_editor_ast.fix_missing_locations(tree)
+    return _python_editor_ast.unparse(tree)
+
+async def _python_editor_readline(*args, **kwargs):
+    if len(args) > 1 or kwargs:
+        raise TypeError("input() takes at most one prompt argument")
+    prompt = str(args[0]) if args else ""
+    return await _python_editor_js_readline(prompt)
+`;
+
+    async function startPython() {
+      try {
+        if (typeof loadPyodide !== "function") {
+          throw new Error("Python could not be loaded. Check your internet connection and try reloading.");
+        }
+
+        const pyodide = await loadPyodide();
+        pyodide.setStdout({ batched: (text) => appendOutput(text + "\n") });
+        pyodide.setStderr({ batched: (text) => appendOutput(text + "\n") });
+        pyodide.globals.set("_python_editor_js_readline", requestInput);
+        await pyodide.runPythonAsync(pythonEditorSetup);
+
+        runButton.disabled = false;
+        clearButton.disabled = false;
+        status.textContent = "Python is ready";
+
+        runButton.addEventListener("click", async () => {
+          runButton.disabled = true;
+          status.textContent = "Running…";
+          output.textContent = "";
+
+          try {
+            pyodide.globals.set("_python_editor_source", editor.value);
+            const transformed = await pyodide.runPythonAsync("_python_editor_transform(_python_editor_source)");
+            const runnableCode = typeof transformed === "string" ? transformed : transformed.toString();
+            if (transformed && typeof transformed.destroy === "function") {
+              transformed.destroy();
+            }
+            await pyodide.runPythonAsync(runnableCode);
+            status.textContent = "Finished";
+          } catch (error) {
+            appendOutput(String(error) + "\n");
+            status.textContent = "There was an error";
+          } finally {
+            terminalInput.hidden = true;
+            pendingInput = null;
+            runButton.disabled = false;
+          }
+        });
+
+        clearButton.addEventListener("click", () => {
+          output.textContent = "";
+        });
+      } catch (error) {
+        status.textContent = "Python could not be loaded";
+        appendOutput(String(error) + "\n");
+      }
+    }
+
+    editor.addEventListener("keydown", (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key === "Enter" && !runButton.disabled) {
+        event.preventDefault();
+        runButton.click();
+      }
+
+      if (event.key === "Tab") {
+        event.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.setRangeText("    ", start, end, "end");
+      }
+    });
+
+    startPython();
+  </script>
+</body>
+</html>
