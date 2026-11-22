@@ -342,7 +342,7 @@ print(f"hello {name}")`;
       embedUrl.search = "";
       embedUrl.hash = "";
       embedUrl.searchParams.set("code", codeEditor.getValue());
-      embedUrl.searchParams.set("hideEmbed", "1");
+      embedUrl.searchParams.set("hideEmbed", "0");
       embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python editor" width="100%" height="560"></iframe>`;
     }
 
