@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Python Parsons problem</title>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #172033;
+      background: #f3f6fb;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 20px;
+    }
+
+    main {
+      width: min(100%, 1000px);
+      margin: 0 auto;
+      overflow: hidden;
+      border: 1px solid #d8dfeb;
+      border-radius: 12px;
+      background: #fff;
+      box-shadow: 0 8px 28px rgb(23 32 51 / 8%);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 20px;
+      border-bottom: 1px solid #e4e9f1;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    #status {
+      color: #58657a;
+      font-size: 0.9rem;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 0.9fr);
+      align-items: stretch;
+    }
+
+    .panel {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      border-right: 1px solid #e4e9f1;
+    }
+
+    .panel:last-child {
+      border-right: 0;
+    }
+
+    .panel-title {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e4e9f1;
+      color: #43516a;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .line-list {
+      display: flex;
+      min-height: 280px;
+      flex: 1;
+      flex-direction: column;
+      gap: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+
+    .code-line {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: white;
+      cursor: grab;
+      touch-action: manipulation;
+    }
+
+    .code-line:active {
+      cursor: grabbing;
+    }
+
+    .code-line.is-dragging {
+      opacity: 0.3;
+    }
+
+    .drag-preview {
+      position: fixed;
+      top: -1000px;
+      left: -1000px;
+      z-index: 1000;
+      width: min(420px, 80vw);
+      box-shadow: 0 8px 24px rgb(23 32 51 / 25%);
+      pointer-events: none;
+    }
+
+    .code-text {
+      min-width: 0;
+      flex: 1;
+      overflow-wrap: anywhere;
+      white-space: pre-wrap;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    .line-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+    }
+
+    .line-actions button, .add-line {
+      padding: 4px 7px;
+      font-size: 0.75rem;
+    }
+
+    .drop-zone {
+      transition: background-color 120ms ease, outline-color 120ms ease;
+    }
+
+    .drop-zone.drag-over {
+      outline: 2px dashed #1769d2;
+      outline-offset: -4px;
+      background: #edf5ff;
+    }
+
+    .insert-indicator {
+      height: 4px;
+      min-height: 4px;
+      margin: -4px 2px;
+      border-radius: 4px;
+      background: #1769d2;
+      pointer-events: none;
+    }
+
+    .empty-message {
+      margin: auto;
+      color: #718096;
+      text-align: center;
+    }
+
+    .success-message {
+      display: grid;
+      min-height: 100%;
+      flex: 1;
+      place-items: center;
+      color: #17613a;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    #target-output {
+      min-height: 280px;
+      margin: 0;
+      padding: 16px;
+      color: #e7edf7;
+      background: #111827;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+      white-space: pre-wrap;
+    }
+
+    button:focus-visible, summary:focus-visible {
+      outline: 3px solid #85b7ff;
+      outline-offset: -3px;
+    }
+
+    #output {
+      min-height: 150px;
+      margin: 0;
+      padding: 16px;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: #e7edf7;
+      background: #111827;
+      font: 14px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #output:empty::before {
+      color: #95a1b5;
+      content: "Your program output will appear here.";
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-top: 1px solid #e4e9f1;
+    }
+
+    button {
+      padding: 9px 16px;
+      border: 0;
+      border-radius: 7px;
+      color: #fff;
+      background: #1769d2;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: #0e56b3;
+    }
+
+    button:disabled {
+      cursor: wait;
+      opacity: 0.55;
+    }
+
+    .hint {
+      color: #58657a;
+      font-size: 0.85rem;
+    }
+
+    #embed-options {
+      padding: 0 16px 16px;
+      color: #43516a;
+      font-size: 0.9rem;
+    }
+
+    #embed-options[hidden] {
+      display: none;
+    }
+
+    .author-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+      margin: 12px 0;
+    }
+
+    .author-field {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .author-field textarea {
+      min-height: 150px;
+      padding: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      color: #172033;
+      background: #fbfcfe;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+      resize: vertical;
+    }
+
+    #embed-code {
+      display: block;
+      margin: 10px 0;
+      padding: 10px;
+      overflow-wrap: anywhere;
+      border-radius: 6px;
+      color: #172033;
+      background: #f3f6fb;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #embed-status {
+      margin-left: 8px;
+    }
+
+    @media (max-width: 680px) {
+      body {
+        padding: 10px;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        border-top: 1px solid #e4e9f1;
+        border-right: 0;
+      }
+
+      .line-list, #target-output { min-height: 180px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Python Parsons problem</h1>
+      <span id="status" role="status" aria-live="polite">Loading Python…</span>
+    </header>
+
+    <div class="workspace">
+      <section class="panel" aria-labelledby="bank-heading">
+        <div class="panel-title" id="bank-heading">Code lines to use</div>
+        <div id="line-bank" class="line-list drop-zone" aria-label="Available code lines"></div>
+      </section>
+      <section class="panel" aria-labelledby="solution-heading">
+        <div class="panel-title" id="solution-heading">Build the program (drag lines here)</div>
+        <div id="solution" class="line-list drop-zone" aria-label="Program solution"></div>
+      </section>
+      <section class="panel" aria-labelledby="target-heading">
+        <div class="panel-title" id="target-heading">Desired output</div>
+        <pre id="target-output"></pre>
+        <div class="panel-title" id="output-heading">Your output</div>
+        <pre id="output" aria-live="polite"></pre>
+      </section>
+    </div>
+
+    <div class="controls">
+      <button id="run" type="button" disabled>Run program</button>
+      <button id="reset" type="button">Reset lines</button>
+      <span class="hint">Drag lines into the program. Use the indent controls to create the block.</span>
+    </div>
+
+    <details id="embed-options">
+      <summary>Embed this page</summary>
+      <p>Set the solution, optional distractor lines, and the output students should match.</p>
+      <div class="author-fields">
+        <label class="author-field" for="author-code">Solution code
+          <textarea id="author-code" spellcheck="false"></textarea>
+        </label>
+        <label class="author-field" for="author-distractors">Distractor lines (one per line)
+          <textarea id="author-distractors" spellcheck="false" placeholder="print(&quot;This line is not needed&quot;)"></textarea>
+        </label>
+        <label class="author-field" for="author-output">Desired output
+          <textarea id="author-output" spellcheck="false"></textarea>
+        </label>
+      </div>
+      <p>Copy this iframe code into your webpage:</p>
+      <code id="embed-code"></code>
+      <button id="update-problem" type="button">Update problem preview</button>
+      <button id="copy-embed" type="button">Copy embed code</button>
+      <span id="embed-status" role="status" aria-live="polite"></span>
+    </details>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
+  <script>
+    const defaultSolution = `name = "Mr Doopy"
+age = 99
+if name:
+    print("Hello world")
+    print(name)
+    print(f"{name} is {age} Years old")
+    print(f"hello {name}")`;
+    const defaultTargetOutput = `Hello world
+Mr Doopy
+Mr Doopy is 99 Years old
+hello Mr Doopy`;
+    const pageParams = new URLSearchParams(window.location.search);
+    const hideEmbed = pageParams.get("hideEmbed") === "1";
+    const embedOptions = document.getElementById("embed-options");
+    const authorCode = document.getElementById("author-code");
+    const authorDistractors = document.getElementById("author-distractors");
+    const authorOutput = document.getElementById("author-output");
+    const embedCode = document.getElementById("embed-code");
+    const embedStatus = document.getElementById("embed-status");
+    const copyEmbedButton = document.getElementById("copy-embed");
+    embedOptions.hidden = hideEmbed;
+    let correctLines = [];
+    let allLines = [];
+    let targetOutput = "";
+    let shuffledOrder = [];
+    let problemConfigError = null;
+
+    function parseSolution(source) {
+      return source.split(/\r?\n/).flatMap((rawLine) => {
+        if (!rawLine.trim()) {
+          return [];
+        }
+        const leading = rawLine.match(/^[\t ]*/)[0].replace(/\t/g, "    ");
+        if (leading.length % 4 !== 0) {
+          throw new Error("Use indentation in multiples of four spaces in the solution code.");
+        }
+        return [{ code: rawLine.trimStart(), indent: leading.length / 4, distractor: false }];
+      });
+    }
+
+    function parseDistractors(source) {
+      return source.split(/\r?\n/).flatMap((rawLine) => {
+        if (!rawLine.trim()) {
+          return [];
+        }
+        const leading = rawLine.match(/^[\t ]*/)[0].replace(/\t/g, "    ");
+        if (leading.length % 4 !== 0) {
+          throw new Error("Use indentation in multiples of four spaces for distractor lines.");
+        }
+        return [{ code: rawLine.trimStart(), indent: leading.length / 4, distractor: true }];
+      });
+    }
+
+    function shuffle(items) {
+      const result = items.slice();
+      for (let index = result.length - 1; index > 0; index--) {
+        const other = Math.floor(Math.random() * (index + 1));
+        [result[index], result[other]] = [result[other], result[index]];
+      }
+      return result;
+    }
+
+    const configuredSolution = pageParams.get("code") ?? defaultSolution;
+    const configuredDistractors = pageParams.get("distractors") ?? "";
+    const configuredOutput = pageParams.get("target") ?? defaultTargetOutput;
+    authorCode.value = configuredSolution;
+    authorDistractors.value = configuredDistractors;
+    authorOutput.value = configuredOutput;
+    try {
+      correctLines = parseSolution(configuredSolution);
+      allLines = correctLines.concat(parseDistractors(configuredDistractors));
+      targetOutput = configuredOutput;
+      shuffledOrder = shuffle(allLines.map((_, index) => index));
+    } catch (error) {
+      targetOutput = configuredOutput;
+      problemConfigError = error.message;
+    }
+
+    const lineBank = document.getElementById("line-bank");
+    const solution = document.getElementById("solution");
+    const output = document.getElementById("output");
+    const runButton = document.getElementById("run");
+    const resetButton = document.getElementById("reset");
+    const status = document.getElementById("status");
+    let draggedLine = null;
+    let insertIndicator = null;
+    let pythonReady = false;
+
+    document.getElementById("target-output").textContent = targetOutput;
+
+    function renderEmptyState(container, message) {
+      if (container.children.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "empty-message";
+        empty.textContent = message;
+        container.append(empty);
+      }
+    }
+
+    function refreshDropZones() {
+      for (const zone of [lineBank, solution]) {
+        zone.querySelectorAll(".empty-message").forEach((message) => message.remove());
+      }
+      renderEmptyState(lineBank, "All lines have been added.");
+      renderEmptyState(solution, "Drop code lines here in the correct order.");
+      runButton.disabled = !pythonReady || solution.querySelectorAll(".code-line").length === 0;
+    }
+
+    function showSuccess(show) {
+      lineBank.querySelectorAll(".code-line").forEach((line) => {
+        line.hidden = show;
+      });
+
+      const message = lineBank.querySelector(".success-message");
+      if (show && !message) {
+        const success = document.createElement("div");
+        success.className = "success-message";
+        success.textContent = "Ka rawe!";
+        lineBank.append(success);
+      } else if (!show && message) {
+        message.remove();
+      }
+    }
+
+    function moveLine(line, destination, before = null) {
+      destination.insertBefore(line, before);
+      updateLineText(line);
+      updateLineActions(line);
+      refreshDropZones();
+    }
+
+    function clearInsertIndicator() {
+      if (insertIndicator) {
+        insertIndicator.remove();
+        insertIndicator = null;
+      }
+    }
+
+    function updateInsertIndicator(zone, clientY) {
+      if (!insertIndicator) {
+        insertIndicator = document.createElement("div");
+        insertIndicator.className = "insert-indicator";
+        insertIndicator.setAttribute("aria-hidden", "true");
+      }
+
+      const lines = Array.from(zone.querySelectorAll(".code-line"))
+        .filter((line) => line !== draggedLine);
+      const nextLine = lines.find((line) => {
+        const bounds = line.getBoundingClientRect();
+        return clientY < bounds.top + bounds.height / 2;
+      });
+      zone.insertBefore(insertIndicator, nextLine || null);
+    }
+
+    function createLine(index) {
+      const line = document.createElement("div");
+      line.className = "code-line";
+      line.draggable = true;
+      line.dataset.lineIndex = String(index);
+      line.dataset.indent = "0";
+      line.dataset.distractor = String(allLines[index].distractor);
+
+      const text = document.createElement("code");
+      text.className = "code-text";
+      text.textContent = allLines[index].code;
+      line.append(text);
+
+      const actions = document.createElement("div");
+      actions.className = "line-actions";
+      line.append(actions);
+
+      line.addEventListener("dragstart", (event) => {
+        draggedLine = line;
+        line.classList.add("is-dragging");
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData("text/plain", line.dataset.lineIndex);
+        const preview = line.cloneNode(true);
+        preview.classList.remove("is-dragging");
+        preview.classList.add("drag-preview");
+        document.body.append(preview);
+        event.dataTransfer.setDragImage(preview, 24, 20);
+        requestAnimationFrame(() => preview.remove());
+      });
+      line.addEventListener("dragend", () => {
+        line.classList.remove("is-dragging");
+        draggedLine = null;
+        clearInsertIndicator();
+        document.querySelectorAll(".drag-over").forEach((zone) => zone.classList.remove("drag-over"));
+      });
+
+      return line;
+    }
+
+    function makeAction(label, title, action) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = label;
+      button.title = title;
+      button.setAttribute("aria-label", title);
+      button.addEventListener("click", action);
+      return button;
+    }
+
+    function updateLineActions(line) {
+      const actions = line.querySelector(".line-actions");
+      actions.replaceChildren();
+      if (line.parentElement !== solution) {
+        return;
+      }
+
+      actions.append(
+        makeAction("Outdent", "Decrease indentation", () => {
+          line.dataset.indent = String(Math.max(0, Number(line.dataset.indent) - 1));
+          updateLineText(line);
+        }),
+        makeAction("Indent", "Increase indentation", () => {
+          line.dataset.indent = String(Math.min(8, Number(line.dataset.indent) + 1));
+          updateLineText(line);
+        })
+      );
+    }
+
+    function updateLineText(line) {
+      const index = Number(line.dataset.lineIndex);
+      const indent = line.parentElement === solution ? Number(line.dataset.indent) : 0;
+      line.querySelector(".code-text").textContent = "    ".repeat(indent) + allLines[index].code;
+    }
+
+    function installLine(line, container) {
+      container.append(line);
+      updateLineText(line);
+      updateLineActions(line);
+    }
+
+    function resetProblem() {
+      lineBank.replaceChildren();
+      solution.replaceChildren();
+      for (const index of shuffledOrder) {
+        installLine(createLine(index), lineBank);
+      }
+      output.textContent = "";
+      showSuccess(false);
+      refreshDropZones();
+    }
+
+    resetProblem();
+
+    for (const zone of [lineBank, solution]) {
+      zone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        zone.classList.add("drag-over");
+        if (draggedLine) {
+          updateInsertIndicator(zone, event.clientY);
+        }
+      });
+      zone.addEventListener("dragleave", (event) => {
+        if (!zone.contains(event.relatedTarget)) {
+          zone.classList.remove("drag-over");
+          if (insertIndicator && insertIndicator.parentElement === zone) {
+            clearInsertIndicator();
+          }
+        }
+      });
+      zone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        zone.classList.remove("drag-over");
+        if (!draggedLine) {
+          return;
+        }
+        updateInsertIndicator(zone, event.clientY);
+        const before = insertIndicator;
+        moveLine(draggedLine, zone, before);
+        clearInsertIndicator();
+      });
+    }
+
+    resetButton.addEventListener("click", () => {
+      resetProblem();
+      status.textContent = "Lines reset";
+    });
+
+    function getProgram() {
+      return Array.from(solution.querySelectorAll(".code-line"), (line) => {
+        const index = Number(line.dataset.lineIndex);
+        return "    ".repeat(Number(line.dataset.indent)) + allLines[index].code;
+      }).join("\n");
+    }
+
+    function matchesExactSolution() {
+      const solutionLines = Array.from(solution.querySelectorAll(".code-line"));
+      if (solutionLines.length !== correctLines.length) {
+        return false;
+      }
+
+      return solutionLines.every((line, position) => {
+        const lineIndex = Number(line.dataset.lineIndex);
+        const lineIndent = Number(line.dataset.indent);
+        return !allLines[lineIndex].distractor
+          && lineIndex === position
+          && lineIndent === correctLines[position].indent;
+      });
+    }
+
+    function updateEmbedCode() {
+      const embedUrl = new URL(window.location.href);
+      embedUrl.search = "";
+      embedUrl.hash = "";
+      embedUrl.searchParams.set("code", authorCode.value);
+      embedUrl.searchParams.set("distractors", authorDistractors.value);
+      embedUrl.searchParams.set("target", authorOutput.value);
+      embedUrl.searchParams.set("hideEmbed", "1");
+      embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python Parsons problem" width="100%" height="760"></iframe>`;
+    }
+
+    function rebuildProblem() {
+      try {
+        correctLines = parseSolution(authorCode.value);
+        if (correctLines.length === 0) {
+          throw new Error("Add at least one solution line.");
+        }
+        allLines = correctLines.concat(parseDistractors(authorDistractors.value));
+        targetOutput = authorOutput.value.replace(/\r\n?/g, "\n");
+        document.getElementById("target-output").textContent = targetOutput;
+        shuffledOrder = shuffle(allLines.map((_, index) => index));
+        resetProblem();
+        problemConfigError = null;
+        status.textContent = "Problem updated";
+        updateEmbedCode();
+      } catch (error) {
+        problemConfigError = error.message;
+        status.textContent = problemConfigError;
+      }
+    }
+
+    for (const field of [authorCode, authorDistractors, authorOutput]) {
+      field.addEventListener("input", updateEmbedCode);
+    }
+    updateEmbedCode();
+    document.getElementById("update-problem").addEventListener("click", rebuildProblem);
+
+    copyEmbedButton.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(embedCode.textContent);
+        embedStatus.textContent = "Embed code copied.";
+      } catch (error) {
+        embedStatus.textContent = "Could not copy automatically. Select and copy the code above.";
+      }
+    });
+
+    function appendOutput(text) {
+      output.textContent += text;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    async function startPython() {
+      try {
+        if (typeof loadPyodide !== "function") {
+          throw new Error("Python could not be loaded. Check your internet connection and try reloading.");
+        }
+
+        const pyodide = await loadPyodide();
+        pyodide.setStdout({ batched: (text) => appendOutput(text + "\n") });
+        pyodide.setStderr({ batched: (text) => appendOutput(text + "\n") });
+        pythonReady = true;
+        refreshDropZones();
+        status.textContent = problemConfigError || "Python is ready";
+
+        runButton.addEventListener("click", async () => {
+          runButton.disabled = true;
+          status.textContent = "Running…";
+          output.textContent = "";
+
+          try {
+            pyodide.globals.set("_parsons_program", getProgram());
+            await pyodide.runPythonAsync("exec(compile(_parsons_program, '<student code>', 'exec'), {})");
+            const matchesTarget = output.textContent.trimEnd() === targetOutput;
+            const matchesSolution = matchesExactSolution();
+            const isCorrect = matchesSolution && matchesTarget;
+            showSuccess(isCorrect);
+            status.textContent = isCorrect ? "Ka rawe!" : "Program ran; compare your output with the target.";
+          } catch (error) {
+            showSuccess(false);
+            appendOutput(String(error) + "\n");
+            status.textContent = "Check your code and indentation";
+          } finally {
+            runButton.disabled = false;
+          }
+        });
+      } catch (error) {
+        status.textContent = "Python could not be loaded";
+        appendOutput(String(error) + "\n");
+      }
+    }
+
+    startPython();
+  </script>
+</body>
+</html>

@@ -313,7 +313,7 @@ print(f"hello {name}")`;
     let pendingInput = null;
     const pageParams = new URLSearchParams(window.location.search);
     const initialCode = pageParams.get("code");
-    const hideEmbed = ["1", "true", "yes"].includes((pageParams.get("hideEmbed") || "").toLowerCase());
+    const hideEmbed = pageParams.get("hideEmbed") === "0";
     embedOptions.hidden = hideEmbed;
     editor.value = initialCode === null ? defaultProgram : initialCode;
     const codeEditor = CodeMirror.fromTextArea(editor, {
@@ -540,6 +540,7 @@ async def _python_editor_readline(*args, **kwargs):
 
         runButton.addEventListener("click", async () => {
           runButton.disabled = true;
+          clearButton.disabled = true;
           status.textContent = "Running…";
           output.textContent = "";
 
@@ -559,6 +560,7 @@ async def _python_editor_readline(*args, **kwargs):
             terminalInput.hidden = true;
             pendingInput = null;
             runButton.disabled = false;
+            clearButton.disabled = false;
           }
         });
 
