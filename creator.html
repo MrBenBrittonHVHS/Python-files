@@ -343,7 +343,7 @@ print(f"hello {name}")`;
       embedUrl.hash = "";
       embedUrl.searchParams.set("code", codeEditor.getValue());
       embedUrl.searchParams.set("hideEmbed", "1");
-      embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python editor" width="100%" height="520"></iframe>`;
+      embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python editor" width="100%" height="560"></iframe>`;
     }
 
     codeEditor.on("change", updateEmbedCode);
