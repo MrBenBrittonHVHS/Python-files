@@ -95,12 +95,16 @@
     }
 
     .CodeMirror {
-      height: auto;
+      height: 300px !important;
+      overflow: hidden;
       background: #fbfcfe;
     }
 
     .CodeMirror-scroll {
+      height: 300px !important;
       min-height: 300px;
+      overflow-y: auto;
+      overflow-x: auto;
     }
 
     .CodeMirror-gutters {
@@ -240,7 +244,12 @@
         min-height: 220px;
       }
 
+      .CodeMirror {
+        height: 220px;
+      }
+
       .CodeMirror-scroll {
+        height: 220px;
         min-height: 220px;
       }
     }
