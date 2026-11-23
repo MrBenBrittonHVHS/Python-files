@@ -390,8 +390,88 @@ hello Mr Doopy`;
     let shuffledOrder = [];
     let problemConfigError = null;
 
+    function splitInlineComment(rawLine) {
+      let quote = null;
+      let escaped = false;
+
+      for (let index = 0; index < rawLine.length; index++) {
+        const character = rawLine[index];
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+        if (character === "\\") {
+          escaped = true;
+          continue;
+        }
+        if (quote) {
+          if (character === quote) {
+            quote = null;
+          }
+          continue;
+        }
+        if (character === "'" || character === '"') {
+          quote = character;
+          continue;
+        }
+        if (character === "#" && index > 0) {
+          return {
+            code: rawLine.slice(0, index).trimEnd(),
+            comment: rawLine.slice(index).trim()
+          };
+        }
+      }
+
+      return { code: rawLine, comment: null };
+    }
+
+    function groupCommentBlocks(lines) {
+      const comments = new Map();
+
+      for (const line of lines) {
+        if (line.comment) {
+          if (!comments.has(line.comment)) {
+            comments.set(line.comment, []);
+          }
+          comments.get(line.comment).push(line);
+        }
+      }
+
+      const grouped = [];
+      const usedComments = new Set();
+      for (const line of lines) {
+        if (!line.comment) {
+          grouped.push({
+            lines: [line],
+            distractor: line.distractor,
+            comment: null
+          });
+          continue;
+        }
+        if (usedComments.has(line.comment)) {
+          continue;
+        }
+        usedComments.add(line.comment);
+        const matchingLines = comments.get(line.comment);
+        if (matchingLines.length === 1) {
+          grouped.push({
+            lines: matchingLines,
+            distractor: matchingLines[0].distractor,
+            comment: null
+          });
+          continue;
+        }
+        grouped.push({
+          lines: matchingLines,
+          distractor: matchingLines.every((matchingLine) => matchingLine.distractor),
+          comment: line.comment
+        });
+      }
+      return grouped;
+    }
+
     function parseSolution(source) {
-      return source.split(/\r?\n/).flatMap((rawLine) => {
+      const lines = source.split(/\r?\n/).flatMap((rawLine) => {
         if (!rawLine.trim()) {
           return [];
         }
@@ -399,12 +479,19 @@ hello Mr Doopy`;
         if (leading.length % 4 !== 0) {
           throw new Error("Use indentation in multiples of four spaces in the solution code.");
         }
-        return [{ code: rawLine.trimStart(), indent: leading.length / 4, distractor: false }];
+        const parsed = splitInlineComment(rawLine.trimStart());
+        return [{
+          code: parsed.code.trimStart(),
+          indent: leading.length / 4,
+          comment: parsed.comment,
+          distractor: false
+        }];
       });
+      return groupCommentBlocks(lines);
     }
 
     function parseDistractors(source) {
-      return source.split(/\r?\n/).flatMap((rawLine) => {
+      const lines = source.split(/\r?\n/).flatMap((rawLine) => {
         if (!rawLine.trim()) {
           return [];
         }
@@ -412,8 +499,15 @@ hello Mr Doopy`;
         if (leading.length % 4 !== 0) {
           throw new Error("Use indentation in multiples of four spaces for distractor lines.");
         }
-        return [{ code: rawLine.trimStart(), indent: leading.length / 4, distractor: true }];
+        const parsed = splitInlineComment(rawLine.trimStart());
+        return [{
+          code: parsed.code.trimStart(),
+          indent: leading.length / 4,
+          comment: parsed.comment,
+          distractor: true
+        }];
       });
+      return groupCommentBlocks(lines);
     }
 
     function shuffle(items) {
@@ -527,7 +621,11 @@ hello Mr Doopy`;
 
       const text = document.createElement("code");
       text.className = "code-text";
-      text.textContent = allLines[index].code;
+      text.textContent = allLines[index].comment
+        ? allLines[index].lines.map((blockLine) => blockLine.code).join("\n")
+        : allLines[index].lines.map((blockLine) =>
+            blockLine.comment ? `${blockLine.code} ${blockLine.comment}` : blockLine.code
+          ).join("\n");
       line.append(text);
 
       const actions = document.createElement("div");
@@ -587,8 +685,14 @@ hello Mr Doopy`;
 
     function updateLineText(line) {
       const index = Number(line.dataset.lineIndex);
-      const indent = line.parentElement === solution ? Number(line.dataset.indent) : 0;
-      line.querySelector(".code-text").textContent = "    ".repeat(indent) + allLines[index].code;
+      const baseIndent = line.parentElement === solution ? Number(line.dataset.indent) : 0;
+      line.querySelector(".code-text").textContent = allLines[index].lines.map((blockLine) => {
+        const indent = baseIndent + blockLine.indent;
+        const visibleCode = allLines[index].comment
+          ? blockLine.code
+          : (blockLine.comment ? `${blockLine.code} ${blockLine.comment}` : blockLine.code);
+        return "    ".repeat(indent) + visibleCode;
+      }).join("\n");
     }
 
     function installLine(line, container) {
@@ -647,7 +751,14 @@ hello Mr Doopy`;
     function getProgram() {
       return Array.from(solution.querySelectorAll(".code-line"), (line) => {
         const index = Number(line.dataset.lineIndex);
-        return "    ".repeat(Number(line.dataset.indent)) + allLines[index].code;
+        const baseIndent = Number(line.dataset.indent);
+        return allLines[index].lines.map((blockLine) => {
+          const indent = "    ".repeat(baseIndent + blockLine.indent);
+          if (allLines[index].comment) {
+            return indent + blockLine.code;
+          }
+          return indent + (blockLine.comment ? `${blockLine.code} ${blockLine.comment}` : blockLine.code);
+        }).join("\n");
       }).join("\n");
     }
 
@@ -659,10 +770,18 @@ hello Mr Doopy`;
 
       return solutionLines.every((line, position) => {
         const lineIndex = Number(line.dataset.lineIndex);
-        const lineIndent = Number(line.dataset.indent);
-        return !allLines[lineIndex].distractor
-          && lineIndex === position
-          && lineIndent === correctLines[position].indent;
+        const baseIndent = Number(line.dataset.indent);
+        const block = allLines[lineIndex];
+        const expectedBlock = correctLines[position];
+        if (block.distractor || lineIndex !== position || block.lines.length !== expectedBlock.lines.length) {
+          return false;
+        }
+
+        return block.lines.every((blockLine, blockPosition) => {
+          const expectedLine = expectedBlock.lines[blockPosition];
+          return blockLine.code === expectedLine.code
+            && baseIndent + blockLine.indent === expectedLine.indent;
+        });
       });
     }
 
