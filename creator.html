@@ -290,6 +290,7 @@
       <code id="embed-code"></code>
       <button id="copy-embed" type="button">Copy embed code</button>
       <span id="embed-status" role="status" aria-live="polite"></span>
+      <p>Or share a direct link to this program: <a id="program-link" target="_blank" rel="noopener noreferrer">Open program</a></p>
       <p>The Python runtime loads from a CDN, so the page needs an internet connection.</p>
     </details>
   </main>
@@ -316,6 +317,7 @@ print(f"hello {name}")`;
     const clearButton = document.getElementById("clear");
     const status = document.getElementById("status");
     const embedCode = document.getElementById("embed-code");
+    const programLink = document.getElementById("program-link");
     const copyEmbedButton = document.getElementById("copy-embed");
     const embedStatus = document.getElementById("embed-status");
     const embedOptions = document.getElementById("embed-options");
@@ -352,6 +354,7 @@ print(f"hello {name}")`;
       embedUrl.hash = "";
       embedUrl.searchParams.set("code", codeEditor.getValue());
       embedUrl.searchParams.set("hideEmbed", "0");
+      programLink.href = embedUrl.href;
       embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python editor" width="100%" height="560"></iframe>`;
     }
 
