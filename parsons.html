@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Python Parsons problem</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
   <style>
     :root {
       color-scheme: light;
@@ -124,6 +125,7 @@
       flex: 1;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
+      color: #000;
       font: 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
     }
 
@@ -361,6 +363,9 @@
     </details>
   </main>
 
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
   <script>
     const defaultSolution = `name = "Mr Doopy"
@@ -427,6 +432,19 @@ hello Mr Doopy`;
 
     function groupCommentBlocks(lines) {
       const comments = new Map();
+      const makeBlock = (blockLines, comment) => {
+        const baseIndent = Math.min(...blockLines.map((line) => line.indent));
+        return {
+          lines: blockLines.map((line) => ({
+            ...line,
+            indent: line.indent - baseIndent,
+            expectedIndent: line.indent
+          })),
+          baseIndent,
+          distractor: blockLines.every((line) => line.distractor),
+          comment
+        };
+      };
 
       for (const line of lines) {
         if (line.comment) {
@@ -441,11 +459,7 @@ hello Mr Doopy`;
       const usedComments = new Set();
       for (const line of lines) {
         if (!line.comment) {
-          grouped.push({
-            lines: [line],
-            distractor: line.distractor,
-            comment: null
-          });
+          grouped.push(makeBlock([line], null));
           continue;
         }
         if (usedComments.has(line.comment)) {
@@ -454,18 +468,10 @@ hello Mr Doopy`;
         usedComments.add(line.comment);
         const matchingLines = comments.get(line.comment);
         if (matchingLines.length === 1) {
-          grouped.push({
-            lines: matchingLines,
-            distractor: matchingLines[0].distractor,
-            comment: null
-          });
+          grouped.push(makeBlock(matchingLines, null));
           continue;
         }
-        grouped.push({
-          lines: matchingLines,
-          distractor: matchingLines.every((matchingLine) => matchingLine.distractor),
-          comment: line.comment
-        });
+        grouped.push(makeBlock(matchingLines, line.comment));
       }
       return grouped;
     }
@@ -556,6 +562,22 @@ hello Mr Doopy`;
       }
     }
 
+    function renderPythonCode(element, source) {
+      const highlighted = document.createElement("span");
+      highlighted.className = "cm-s-default";
+      CodeMirror.runMode(source, "python", (text, style) => {
+        if (!style) {
+          highlighted.append(document.createTextNode(text));
+          return;
+        }
+        const token = document.createElement("span");
+        token.className = `cm-${style}`;
+        token.textContent = text;
+        highlighted.append(token);
+      });
+      element.replaceChildren(highlighted);
+    }
+
     function refreshDropZones() {
       for (const zone of [lineBank, solution]) {
         zone.querySelectorAll(".empty-message").forEach((message) => message.remove());
@@ -621,11 +643,12 @@ hello Mr Doopy`;
 
       const text = document.createElement("code");
       text.className = "code-text";
-      text.textContent = allLines[index].comment
+      const source = allLines[index].comment
         ? allLines[index].lines.map((blockLine) => blockLine.code).join("\n")
         : allLines[index].lines.map((blockLine) =>
             blockLine.comment ? `${blockLine.code} ${blockLine.comment}` : blockLine.code
           ).join("\n");
+      renderPythonCode(text, source);
       line.append(text);
 
       const actions = document.createElement("div");
@@ -686,13 +709,14 @@ hello Mr Doopy`;
     function updateLineText(line) {
       const index = Number(line.dataset.lineIndex);
       const baseIndent = line.parentElement === solution ? Number(line.dataset.indent) : 0;
-      line.querySelector(".code-text").textContent = allLines[index].lines.map((blockLine) => {
+      const source = allLines[index].lines.map((blockLine) => {
         const indent = baseIndent + blockLine.indent;
         const visibleCode = allLines[index].comment
           ? blockLine.code
           : (blockLine.comment ? `${blockLine.code} ${blockLine.comment}` : blockLine.code);
         return "    ".repeat(indent) + visibleCode;
       }).join("\n");
+      renderPythonCode(line.querySelector(".code-text"), source);
     }
 
     function installLine(line, container) {
@@ -780,7 +804,7 @@ hello Mr Doopy`;
         return block.lines.every((blockLine, blockPosition) => {
           const expectedLine = expectedBlock.lines[blockPosition];
           return blockLine.code === expectedLine.code
-            && baseIndent + blockLine.indent === expectedLine.indent;
+            && baseIndent + blockLine.indent === expectedLine.expectedIndent;
         });
       });
     }
@@ -857,11 +881,9 @@ hello Mr Doopy`;
           try {
             pyodide.globals.set("_parsons_program", getProgram());
             await pyodide.runPythonAsync("exec(compile(_parsons_program, '<student code>', 'exec'), {})");
-            const matchesTarget = output.textContent.trimEnd() === targetOutput;
             const matchesSolution = matchesExactSolution();
-            const isCorrect = matchesSolution && matchesTarget;
-            showSuccess(isCorrect);
-            status.textContent = isCorrect ? "Ka rawe!" : "Program ran; compare your output with the target.";
+            showSuccess(matchesSolution);
+            status.textContent = matchesSolution ? "Ka rawe!" : "Program ran; compare your code with the solution.";
           } catch (error) {
             showSuccess(false);
             appendOutput(String(error) + "\n");
