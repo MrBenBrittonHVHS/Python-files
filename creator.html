@@ -293,6 +293,7 @@
       <p>Or share a direct link to this program: <a id="program-link" target="_blank" rel="noopener noreferrer">Open program</a></p>
       <p>The Python runtime loads from a CDN, so the page needs an internet connection.</p>
     </details>
+    <p id="standalone-program-link" hidden>Open this program in a new page: <a id="hidden-embed-program-link" target="_blank" rel="noopener noreferrer">Open program</a></p>
   </main>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -321,11 +322,15 @@ print(f"hello {name}")`;
     const copyEmbedButton = document.getElementById("copy-embed");
     const embedStatus = document.getElementById("embed-status");
     const embedOptions = document.getElementById("embed-options");
+    const standaloneProgramLink = document.getElementById("standalone-program-link");
+    const hiddenEmbedProgramLink = document.getElementById("hidden-embed-program-link");
     let pendingInput = null;
     const pageParams = new URLSearchParams(window.location.search);
     const initialCode = pageParams.get("code");
     const hideEmbed = pageParams.get("hideEmbed") === "0";
+    const showProgramLink = pageParams.get("showProgramLink") === "1";
     embedOptions.hidden = hideEmbed;
+    standaloneProgramLink.hidden = !hideEmbed || !showProgramLink;
     editor.value = initialCode === null ? defaultProgram : initialCode;
     const codeEditor = CodeMirror.fromTextArea(editor, {
       mode: "python",
@@ -354,7 +359,12 @@ print(f"hello {name}")`;
       embedUrl.hash = "";
       embedUrl.searchParams.set("code", codeEditor.getValue());
       embedUrl.searchParams.set("hideEmbed", "0");
+      embedUrl.searchParams.set("showProgramLink", "0");
       programLink.href = embedUrl.href;
+      hiddenEmbedProgramLink.href = embedUrl.href;
+      if (showProgramLink) {
+        embedUrl.searchParams.set("showProgramLink", "1");
+      }
       embedCode.textContent = `<iframe src="${embedUrl.href}" title="Python editor" width="100%" height="560"></iframe>`;
     }
 
