@@ -208,6 +208,39 @@
       content: "Your program output will appear here.";
     }
 
+    .terminal-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      background: #111827;
+    }
+
+    .terminal-input[hidden] {
+      display: none;
+    }
+
+    .terminal-prompt {
+      color: #9fb0ca;
+      font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #stdin {
+      min-width: 0;
+      flex: 1;
+      padding: 7px 8px;
+      border: 1px solid #45536b;
+      border-radius: 4px;
+      color: #e7edf7;
+      background: #1d2738;
+      font: 14px ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+
+    #send-input {
+      padding: 7px 10px;
+      font-size: 0.85rem;
+    }
+
     .controls {
       display: flex;
       flex-wrap: wrap;
@@ -328,10 +361,15 @@
         <div id="solution" class="line-list drop-zone" aria-label="Program solution"></div>
       </section>
       <section class="panel" aria-labelledby="target-heading">
-        <div class="panel-title" id="target-heading">Desired output</div>
+        <div class="panel-title" id="target-heading">Descritption of output</div>
         <pre id="target-output"></pre>
         <div class="panel-title" id="output-heading">Your output</div>
         <pre id="output" aria-live="polite"></pre>
+        <form class="terminal-input" id="terminal-input" hidden>
+          <span class="terminal-prompt" aria-hidden="true">&gt;</span>
+          <input id="stdin" type="text" aria-label="Type input for your Python program" placeholder="Type a response and press Enter" autocomplete="off">
+          <button id="send-input" type="submit">Enter</button>
+        </form>
       </section>
     </div>
 
@@ -351,7 +389,7 @@
         <label class="author-field" for="author-distractors">Distractor lines (one per line)
           <textarea id="author-distractors" spellcheck="false" placeholder="print(&quot;This line is not needed&quot;)"></textarea>
         </label>
-        <label class="author-field" for="author-output">Desired output
+        <label class="author-field" for="author-output">Description of output
           <textarea id="author-output" spellcheck="false"></textarea>
         </label>
       </div>
@@ -368,17 +406,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/pyodide/v0.27.7/full/pyodide.js"></script>
   <script>
-    const defaultSolution = `name = "Mr Doopy"
-age = 99
-if name:
-    print("Hello world")
-    print(name)
-    print(f"{name} is {age} Years old")
-    print(f"hello {name}")`;
-    const defaultTargetOutput = `Hello world
-Mr Doopy
-Mr Doopy is 99 Years old
-hello Mr Doopy`;
+    const defaultSolution = `print(f{"Hello World"})`;
+    const defaultTargetOutput = `Description goes here`;
     const pageParams = new URLSearchParams(window.location.search);
     const hideEmbed = pageParams.get("hideEmbed") === "1";
     const embedOptions = document.getElementById("embed-options");
@@ -544,12 +573,15 @@ hello Mr Doopy`;
     const lineBank = document.getElementById("line-bank");
     const solution = document.getElementById("solution");
     const output = document.getElementById("output");
+    const stdin = document.getElementById("stdin");
+    const terminalInput = document.getElementById("terminal-input");
     const runButton = document.getElementById("run");
     const resetButton = document.getElementById("reset");
     const status = document.getElementById("status");
     let draggedLine = null;
     let insertIndicator = null;
     let pythonReady = false;
+    let pendingInput = null;
 
     document.getElementById("target-output").textContent = targetOutput;
 
@@ -787,25 +819,31 @@ hello Mr Doopy`;
     }
 
     function matchesExactSolution() {
-      const solutionLines = Array.from(solution.querySelectorAll(".code-line"));
-      if (solutionLines.length !== correctLines.length) {
+      const expectedLines = correctLines.flatMap((block) => block.lines.map((line) => ({
+        code: line.code,
+        indent: line.expectedIndent,
+        comment: block.comment ? null : line.comment
+      })));
+      const assembledLines = Array.from(solution.querySelectorAll(".code-line")).flatMap((line) => {
+        const index = Number(line.dataset.lineIndex);
+        const block = allLines[index];
+        const baseIndent = Number(line.dataset.indent);
+        return block.lines.map((blockLine) => ({
+          code: blockLine.code,
+          indent: baseIndent + blockLine.indent,
+          comment: block.comment ? null : blockLine.comment
+        }));
+      });
+
+      if (assembledLines.length !== expectedLines.length) {
         return false;
       }
 
-      return solutionLines.every((line, position) => {
-        const lineIndex = Number(line.dataset.lineIndex);
-        const baseIndent = Number(line.dataset.indent);
-        const block = allLines[lineIndex];
-        const expectedBlock = correctLines[position];
-        if (block.distractor || lineIndex !== position || block.lines.length !== expectedBlock.lines.length) {
-          return false;
-        }
-
-        return block.lines.every((blockLine, blockPosition) => {
-          const expectedLine = expectedBlock.lines[blockPosition];
-          return blockLine.code === expectedLine.code
-            && baseIndent + blockLine.indent === expectedLine.expectedIndent;
-        });
+      return assembledLines.every((line, position) => {
+        const expectedLine = expectedLines[position];
+        return line.code === expectedLine.code
+          && line.indent === expectedLine.indent
+          && line.comment === expectedLine.comment;
       });
     }
 
@@ -860,6 +898,182 @@ hello Mr Doopy`;
       output.scrollTop = output.scrollHeight;
     }
 
+    function requestInput(promptText) {
+      if (promptText) {
+        appendOutput(String(promptText));
+      }
+
+      return new Promise((resolve) => {
+        pendingInput = resolve;
+        terminalInput.hidden = false;
+        stdin.value = "";
+        stdin.focus();
+      });
+    }
+
+    terminalInput.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (pendingInput === null) {
+        return;
+      }
+
+      const answer = stdin.value;
+      appendOutput(answer + "\n");
+      terminalInput.hidden = true;
+      const resolve = pendingInput;
+      pendingInput = null;
+      resolve(answer);
+    });
+
+    const pythonInputSetup = `
+import ast as _parsons_ast
+
+class _ParsonsCallScanner(_parsons_ast.NodeVisitor):
+    def __init__(self):
+        self.calls = set()
+        self.has_input = False
+
+    def visit_FunctionDef(self, node):
+        return
+
+    def visit_AsyncFunctionDef(self, node):
+        return
+
+    def visit_Lambda(self, node):
+        return
+
+    def visit_Call(self, node):
+        if isinstance(node.func, _parsons_ast.Name):
+            if node.func.id == "input":
+                self.has_input = True
+            else:
+                self.calls.add(node.func.id)
+        elif isinstance(node.func, _parsons_ast.Attribute):
+            self.calls.add(node.func.attr)
+        self.generic_visit(node)
+
+def _parsons_transform(source):
+    tree = _parsons_ast.parse(source)
+    functions = {}
+    for node in _parsons_ast.walk(tree):
+        if isinstance(node, (_parsons_ast.FunctionDef, _parsons_ast.AsyncFunctionDef)):
+            functions.setdefault(node.name, []).append(node)
+
+    dependencies = {}
+    async_names = set()
+    for name, definitions in functions.items():
+        dependencies[name] = set()
+        for definition in definitions:
+            scanner = _ParsonsCallScanner()
+            for statement in definition.body:
+                scanner.visit(statement)
+            dependencies[name].update(scanner.calls)
+            if scanner.has_input or isinstance(definition, _parsons_ast.AsyncFunctionDef):
+                async_names.add(name)
+
+    changed = True
+    while changed:
+        changed = False
+        for name, calls in dependencies.items():
+            if name not in async_names and calls.intersection(async_names):
+                async_names.add(name)
+                changed = True
+
+    class _InputTransformer(_parsons_ast.NodeTransformer):
+        def __init__(self):
+            self.async_context = [True]
+
+        def visit_Lambda(self, node):
+            if any(
+                isinstance(child, _parsons_ast.Call)
+                and isinstance(child.func, _parsons_ast.Name)
+                and (child.func.id == "input" or child.func.id in async_names)
+                for child in _parsons_ast.walk(node)
+            ):
+                raise SyntaxError("input() inside a lambda is not supported")
+            return node
+
+        def visit_FunctionDef(self, node):
+            return self._visit_function(node, False)
+
+        def visit_AsyncFunctionDef(self, node):
+            return self._visit_function(node, True)
+
+        def _visit_function(self, node, already_async):
+            can_await = already_async or node.name in async_names
+            self.async_context.append(can_await)
+            node.body = [self.visit(statement) for statement in node.body]
+            self.async_context.pop()
+            if node.name in async_names and not already_async:
+                converted = _parsons_ast.AsyncFunctionDef(
+                    name=node.name,
+                    args=node.args,
+                    body=node.body,
+                    decorator_list=node.decorator_list,
+                    returns=node.returns,
+                    type_comment=node.type_comment,
+                    type_params=getattr(node, "type_params", [])
+                )
+                return _parsons_ast.copy_location(converted, node)
+            return node
+
+        def visit_Call(self, node):
+            is_input = isinstance(node.func, _parsons_ast.Name) and node.func.id == "input"
+            is_async_call = (
+                isinstance(node.func, _parsons_ast.Name) and node.func.id in async_names
+            ) or (
+                isinstance(node.func, _parsons_ast.Attribute) and node.func.attr in async_names
+            )
+            node = self.generic_visit(node)
+            if is_input:
+                if not self.async_context[-1]:
+                    raise SyntaxError("input() could not be made asynchronous in this context")
+                call = _parsons_ast.Call(
+                    func=_parsons_ast.Name(id="_parsons_readline", ctx=_parsons_ast.Load()),
+                    args=node.args,
+                    keywords=node.keywords
+                )
+                return _parsons_ast.copy_location(_parsons_ast.Await(value=call), node)
+            if is_async_call:
+                if not self.async_context[-1]:
+                    raise SyntaxError("A function that uses input() was called from a synchronous context")
+                return _parsons_ast.copy_location(_parsons_ast.Await(value=node), node)
+            return node
+
+    tree = _InputTransformer().visit(tree)
+    return tree.body
+
+async def _parsons_execute(source):
+    body = _parsons_transform(source)
+    main = _parsons_ast.AsyncFunctionDef(
+        name="_parsons_main",
+        args=_parsons_ast.arguments(
+            posonlyargs=[],
+            args=[],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[]
+        ),
+        body=body or [_parsons_ast.Pass()],
+        decorator_list=[],
+        type_params=getattr(_parsons_ast.AsyncFunctionDef, "type_params", [])
+    )
+    module = _parsons_ast.Module(body=[main], type_ignores=[])
+    _parsons_ast.fix_missing_locations(module)
+    namespace = {}
+    namespace["_parsons_readline"] = _parsons_readline
+    exec(compile(module, "<student code>", "exec"), namespace)
+    await namespace["_parsons_main"]()
+
+async def _parsons_readline(*args, **kwargs):
+    if len(args) > 1 or kwargs:
+        raise TypeError("input() takes at most one prompt argument")
+    prompt = str(args[0]) if args else ""
+    return await _parsons_js_readline(prompt)
+`;
+
     async function startPython() {
       try {
         if (typeof loadPyodide !== "function") {
@@ -869,6 +1083,8 @@ hello Mr Doopy`;
         const pyodide = await loadPyodide();
         pyodide.setStdout({ batched: (text) => appendOutput(text + "\n") });
         pyodide.setStderr({ batched: (text) => appendOutput(text + "\n") });
+        pyodide.globals.set("_parsons_js_readline", requestInput);
+        await pyodide.runPythonAsync(pythonInputSetup);
         pythonReady = true;
         refreshDropZones();
         status.textContent = problemConfigError || "Python is ready";
@@ -879,8 +1095,8 @@ hello Mr Doopy`;
           output.textContent = "";
 
           try {
-            pyodide.globals.set("_parsons_program", getProgram());
-            await pyodide.runPythonAsync("exec(compile(_parsons_program, '<student code>', 'exec'), {})");
+            pyodide.globals.set("_parsons_source", getProgram());
+            await pyodide.runPythonAsync("_parsons_execute(_parsons_source)");
             const matchesSolution = matchesExactSolution();
             showSuccess(matchesSolution);
             status.textContent = matchesSolution ? "Ka rawe!" : "Program ran; compare your code with the solution.";
@@ -889,6 +1105,8 @@ hello Mr Doopy`;
             appendOutput(String(error) + "\n");
             status.textContent = "Check your code and indentation";
           } finally {
+            terminalInput.hidden = true;
+            pendingInput = null;
             runButton.disabled = false;
           }
         });
